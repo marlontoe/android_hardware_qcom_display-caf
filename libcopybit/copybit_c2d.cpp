@@ -1419,8 +1419,8 @@ static int blit_copybit(
 {
     int status = COPYBIT_SUCCESS;
     struct copybit_context_t* ctx = (struct copybit_context_t*)dev;
-    struct copybit_rect_t dr = { 0, 0, (int)dst->w, (int)dst->h };
-    struct copybit_rect_t sr = { 0, 0, (int)src->w, (int)src->h };
+    struct copybit_rect_t dr = { 0, 0, static_cast<int>(dst->w), static_cast<int>(dst->h) };
+    struct copybit_rect_t sr = { 0, 0, static_cast<int>(src->w), static_cast<int>(src->h) };
     pthread_mutex_lock(&ctx->wait_cleanup_lock);
     status = stretch_copybit_internal(dev, dst, src, &dr, &sr, region, false);
     pthread_mutex_unlock(&ctx->wait_cleanup_lock);
