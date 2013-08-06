@@ -25,10 +25,6 @@
 #define LIKELY( exp )       (__builtin_expect( (exp) != 0, true  ))
 #define UNLIKELY( exp )     (__builtin_expect( (exp) != 0, false ))
 
-namespace overlay {
-    class Rotator;
-}
-
 namespace qhwc {
 namespace ovutils = overlay::utils;
 
@@ -50,7 +46,6 @@ public:
 protected:
     const int mDpy; // display to update
     bool mModeOn; // if prepare happened
-    overlay::Rotator *mRot;
 };
 
 //Low resolution (<= 2048) panel handler.
