@@ -117,6 +117,90 @@ static int openFramebufferDevice(hwc_context_t *ctx)
     return 0;
 }
 
+static int ppdComm(const char* cmd, hwc_context_t *ctx) {
+    int ret = -1;
+    ret = send(ctx->mCablProp.daemon_socket, cmd, strlen(cmd), MSG_NOSIGNAL);
+    if(ret < 0) {
+        if (errno == EPIPE) {
+            //For broken pipe case, we will close the socket and
+            //re-establish the connection
+            close(ctx->mCablProp.daemon_socket);
+            int daemon_socket = socket_local_client(DAEMON_SOCKET,
+                    ANDROID_SOCKET_NAMESPACE_RESERVED,
+                    SOCK_STREAM);
+            if(!daemon_socket) {
+                ALOGE("Connecting to socket failed: %s", strerror(errno));
+                ctx->mCablProp.enabled = false;
+                return -1;
+            }
+            struct timeval timeout;
+            timeout.tv_sec = 1;//wait 1 second before timeout
+            timeout.tv_usec = 0;
+
+            if (setsockopt(daemon_socket, SOL_SOCKET, SO_SNDTIMEO,
+                        (char*)&timeout, sizeof(timeout )) < 0)
+                ALOGE("setsockopt failed");
+
+            ctx->mCablProp.daemon_socket = daemon_socket;
+            //resend the cmd after connection is re-established
+            ret = send(ctx->mCablProp.daemon_socket, cmd, strlen(cmd),
+                       MSG_NOSIGNAL);
+            if (ret < 0) {
+                ALOGE("Failed to send data over socket: %s",
+                        strerror(errno));
+                return ret;
+            }
+        } else {
+            ALOGE("Failed to send data over socket: %s",
+                    strerror(errno));
+            return ret;
+        }
+    }
+    ALOGD_IF(HWC_UTILS_DEBUG, "%s: Sent command: %s", __FUNCTION__, cmd);
+    return 0;
+}
+
+static void connectPPDaemon(hwc_context_t *ctx)
+{
+    int ret = -1;
+    char property[PROPERTY_VALUE_MAX];
+    if ((property_get("ro.qualcomm.cabl", property, NULL) > 0) &&
+        (atoi(property) == 1)) {
+        ALOGD("%s: CABL is enabled", __FUNCTION__);
+        ctx->mCablProp.enabled = true;
+    } else {
+        ALOGD("%s: CABL is disabled", __FUNCTION__);
+        ctx->mCablProp.enabled = false;
+        return;
+    }
+
+    if ((property_get("persist.qcom.cabl.video_only", property, NULL) > 0) &&
+        (atoi(property) == 1)) {
+        ALOGD("%s: CABL is in video only mode", __FUNCTION__);
+        ctx->mCablProp.videoOnly = true;
+    } else {
+        ctx->mCablProp.videoOnly = false;
+    }
+
+    int daemon_socket = socket_local_client(DAEMON_SOCKET,
+                                            ANDROID_SOCKET_NAMESPACE_RESERVED,
+                                            SOCK_STREAM);
+    if(!daemon_socket) {
+        ALOGE("Connecting to socket failed: %s", strerror(errno));
+        ctx->mCablProp.enabled = false;
+        return;
+    }
+    struct timeval timeout;
+    timeout.tv_sec = 1; //wait 1 second before timeout
+    timeout.tv_usec = 0;
+
+    if (setsockopt(daemon_socket, SOL_SOCKET, SO_SNDTIMEO,
+        (char*)&timeout, sizeof(timeout )) < 0)
+        ALOGE("setsockopt failed");
+
+    ctx->mCablProp.daemon_socket = daemon_socket;
+}
+
 void initContext(hwc_context_t *ctx)
 {
     if(openFramebufferDevice(ctx) < 0) {
@@ -129,9 +213,6 @@ void initContext(hwc_context_t *ctx)
     ctx->mMDP.version = qdutils::MDPVersion::getInstance().getMDPVersion();
     ctx->mMDP.hasOverlay = qdutils::MDPVersion::getInstance().hasOverlay();
     ctx->mMDP.panel = qdutils::MDPVersion::getInstance().getPanelType();
-    overlay::Overlay::initOverlay();
-    ctx->mOverlay = overlay::Overlay::getInstance();
-    ctx->mRotMgr = new RotMgr();
 
     //Is created and destroyed only once for primary
     //For external it could get created and destroyed multiple times depending
@@ -178,6 +259,8 @@ void initContext(hwc_context_t *ctx)
 
     ALOGI("Initializing Qualcomm Hardware Composer");
     ALOGI("MDP version: %d", ctx->mMDP.version);
+
+    connectPPDaemon(ctx);
 }
 
 void closeContext(hwc_context_t *ctx)
@@ -283,6 +366,38 @@ void getActionSafePosition(hwc_context_t *ctx, int dpy, uint32_t& x,
     return;
 }
 
+/* Calculates the aspect ratio for external based on the primary */
+void getAspectRatioPosition(hwc_context_t *ctx, int dpy, int orientation,
+                        uint32_t& x, uint32_t& y, uint32_t& w, uint32_t& h) {
+    int fbWidth  = ctx->dpyAttr[dpy].xres;
+    int fbHeight = ctx->dpyAttr[dpy].yres;
+
+    switch(orientation) {
+        case HAL_TRANSFORM_ROT_90:
+        case HAL_TRANSFORM_ROT_270:
+            y = 0;
+            h = fbHeight;
+            if (ctx->dpyAttr[HWC_DISPLAY_PRIMARY].xres <
+                ctx->dpyAttr[HWC_DISPLAY_PRIMARY].yres) {
+                // Portrait primary panel
+                w = (ctx->dpyAttr[HWC_DISPLAY_PRIMARY].xres *
+                     fbHeight/ctx->dpyAttr[HWC_DISPLAY_PRIMARY].yres);
+            } else {
+                //Landscape primary panel
+                w = (ctx->dpyAttr[HWC_DISPLAY_PRIMARY].yres *
+                     fbHeight/ctx->dpyAttr[HWC_DISPLAY_PRIMARY].xres);
+            }
+            x = (fbWidth - w)/2;
+            break;
+        default:
+            //Do nothing
+            break;
+     }
+    ALOGD_IF(HWC_UTILS_DEBUG, "%s: Position: x = %d, y = %d w = %d h = %d",
+                    __FUNCTION__, x, y, w ,h);
+}
+
+
 bool needsScaling(hwc_context_t* ctx, hwc_layer_1_t const* layer,
         const int& dpy) {
     int dst_w, dst_h, src_w, src_h;
@@ -325,21 +440,34 @@ bool isAlphaPresent(hwc_layer_1_t const* layer) {
     return false;
 }
 
-// Let CABL know we have a YUV layer
-static void setYUVProp(int yuvCount) {
-    static char property[PROPERTY_VALUE_MAX];
-    if(yuvCount > 0) {
-        if (property_get("hw.cabl.yuv", property, NULL) > 0) {
-            if (atoi(property) != 1) {
-                property_set("hw.cabl.yuv", "1");
-            }
+// Switch ppd on/off for YUV
+static void configurePPD(hwc_context_t *ctx, int yuvCount) {
+    if (!ctx->mCablProp.enabled)
+        return;
+
+    // No PPD for external
+    if (ctx->mExtDisplay->isExternalConnected()) {
+        if (ctx->mCablProp.start) {
+            ppdComm("cabl:off", ctx);
+            ctx->mCablProp.start = false;
         }
-    } else {
-        if (property_get("hw.cabl.yuv", property, NULL) > 0) {
-            if (atoi(property) != 0) {
-                property_set("hw.cabl.yuv", "0");
-            }
-        }
+        return;
+    }
+
+    if (yuvCount > 0 && !ctx->mCablProp.start) {
+        ctx->mCablProp.start = true;
+        if(ctx->mCablProp.videoOnly)
+            ppdComm("cabl:on", ctx);
+        else
+            ppdComm("cabl:yuv_on", ctx);
+
+    } else if (yuvCount == 0 && ctx->mCablProp.start) {
+        ctx->mCablProp.start = false;
+        if(ctx->mCablProp.videoOnly)
+            ppdComm("cabl:off", ctx);
+        else
+            ppdComm("cabl:yuv_off", ctx);
+        return;
     }
 }
 
@@ -388,7 +516,8 @@ void setListStats(hwc_context_t *ctx,
             ctx->listStats[dpy].extOnlyLayerIndex = i;
         }
     }
-    setYUVProp(ctx->listStats[dpy].yuvCount);
+    if (dpy == HWC_DISPLAY_PRIMARY)
+        configurePPD(ctx, ctx->listStats[dpy].yuvCount);
 }
 
 
@@ -574,6 +703,9 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
     int acquireFd[MAX_NUM_APP_LAYERS];
     int count = 0;
     int releaseFd = -1;
+#ifdef USE_RETIRE_FENCE
+    int retireFd = -1;
+#endif
     int fbFd = -1;
     int rotFd = -1;
     bool swapzero = false;
@@ -587,6 +719,9 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
     }
     data.acq_fen_fd = acquireFd;
     data.rel_fen_fd = &releaseFd;
+#ifdef USE_RETIRE_FENCE
+    data.retire_fen_fd = &retireFd;
+#endif
 
     char property[PROPERTY_VALUE_MAX];
     if(property_get("debug.egl.swapinterval", property, "1") > 0) {
@@ -689,14 +824,20 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
         //Signals when MDP finishes reading rotator buffers.
         ctx->mLayerRotMap[dpy]->setReleaseFd(releaseFd);
     }
-
-    if(UNLIKELY(swapzero)){
+#ifdef USE_RETIRE_FENCE
+    close(releaseFd);
+    if(UNLIKELY(swapzero))
+        list->retireFenceFd = -1;
+    else
+        list->retireFenceFd = retireFd;
+#else
+    if(UNLIKELY(swapzero)) {
         list->retireFenceFd = -1;
         close(releaseFd);
     } else {
         list->retireFenceFd = releaseFd;
     }
-
+#endif
     return ret;
 }
 
