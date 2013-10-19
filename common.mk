@@ -44,3 +44,8 @@ endif
 ifneq ($(TARGET_DISPLAY_INSECURE_MM_HEAP),true)
     common_flags += -DSECURE_MM_HEAP
 endif
+
+# executed for the G2 clusterF**K
+ifeq ($(TARGET_KERNEL_SOURCE_IS_MAINTAINED_BY_BUNGHOLES), true)
+    common_flags += -DIS_THE_NEXUS_FIVE_OUT_YET
+endif

@@ -478,8 +478,10 @@ inline bool isYuv(uint32_t format) {
         case MDP_Y_CR_CB_H2V2:
         case MDP_Y_CR_CB_GH2V2:
         case MDP_Y_CBCR_H2V2_VENUS:
+#ifndef IS_THE_NEXUS_FIVE_OUT_YET
         case MDP_YCBYCR_H2V1:
         case MDP_YCRYCB_H2V1:
+#endif
             return true;
         default:
             return false;
@@ -509,8 +511,10 @@ inline const char* getFormatString(int format){
         "MDP_ARGB_8888",
         "MDP_RGB_888",
         "MDP_Y_CRCB_H2V2",
+#ifndef IS_THE_NEXUS_FIVE_OUT_YET
         "MDP_YCBYCR_H2V1",
         "MDP_YCRYCB_H2V1",
+#endif
         "MDP_Y_CRCB_H2V1",
         "MDP_Y_CBCR_H2V1",
         "MDP_Y_CRCB_H1V2",
