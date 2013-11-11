@@ -107,7 +107,7 @@ int AdrenoMemInfo::getStride(int width, int format)
 {
     int stride = ALIGN(width, 32);
     // Currently surface padding is only computed for RGB* surfaces.
-    if (format < 0x7) {
+    if (format <= HAL_PIXEL_FORMAT_sRGB_X_8888) {
         int bpp = 4;
         switch(format)
         {
@@ -115,8 +115,6 @@ int AdrenoMemInfo::getStride(int width, int format)
                 bpp = 3;
                 break;
             case HAL_PIXEL_FORMAT_RGB_565:
-            case HAL_PIXEL_FORMAT_RGBA_5551:
-            case HAL_PIXEL_FORMAT_RGBA_4444:
                 bpp = 2;
                 break;
             default: break;
@@ -156,6 +154,9 @@ int AdrenoMemInfo::getStride(int width, int format)
                 break;
             case HAL_PIXEL_FORMAT_BLOB:
                 stride = width;
+                break;
+            case HAL_PIXEL_FORMAT_NV21_ZSL:
+                stride = ALIGN(width, 64);
                 break;
             default: break;
         }
@@ -309,14 +310,14 @@ size_t getBufferSizeAndDimensions(int width, int height, int format,
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGBX_8888:
         case HAL_PIXEL_FORMAT_BGRA_8888:
+        case HAL_PIXEL_FORMAT_sRGB_A_8888:
+        case HAL_PIXEL_FORMAT_sRGB_X_8888:
             size = alignedw * alignedh * 4;
             break;
         case HAL_PIXEL_FORMAT_RGB_888:
             size = alignedw * alignedh * 3;
             break;
         case HAL_PIXEL_FORMAT_RGB_565:
-        case HAL_PIXEL_FORMAT_RGBA_5551:
-        case HAL_PIXEL_FORMAT_RGBA_4444:
         case HAL_PIXEL_FORMAT_RAW_SENSOR:
             size = alignedw * alignedh * 2;
             break;
@@ -353,7 +354,7 @@ size_t getBufferSizeAndDimensions(int width, int height, int format,
         case HAL_PIXEL_FORMAT_YCbCr_420_SP:
         case HAL_PIXEL_FORMAT_YCrCb_420_SP:
             alignedh = height;
-            size = ALIGN((alignedw*alignedh) + (alignedw* alignedh)/2, 4096);
+            size = ALIGN((alignedw*alignedh) + (alignedw* alignedh)/2 + 1, 4096);
             break;
         case HAL_PIXEL_FORMAT_YCbCr_422_SP:
         case HAL_PIXEL_FORMAT_YCrCb_422_SP:
@@ -379,6 +380,10 @@ size_t getBufferSizeAndDimensions(int width, int height, int format,
             alignedh = height;
             alignedw = width;
             size = width;
+            break;
+        case HAL_PIXEL_FORMAT_NV21_ZSL:
+            alignedh = ALIGN(height, 64);
+            size = ALIGN((alignedw*alignedh) + (alignedw* alignedh)/2, 4096);
             break;
         default:
             ALOGE("unrecognized pixel format: 0x%x", format);

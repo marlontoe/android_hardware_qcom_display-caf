@@ -23,6 +23,7 @@
 
 #define HWC_REMOVE_DEPRECATED_VERSIONS 1
 #include <fcntl.h>
+#include <math.h>
 #include <hardware/hwcomposer.h>
 #include <gr.h>
 #include <gralloc_priv.h>
@@ -159,6 +160,25 @@ inline overlay::Rotator* LayerRotMap::getRot(uint32_t index) const {
     return mRot[index];
 }
 
+inline hwc_rect_t integerizeSourceCrop(const hwc_frect_t& cropF) {
+    hwc_rect_t cropI = {0};
+    cropI.left = int(ceilf(cropF.left));
+    cropI.top = int(ceilf(cropF.top));
+    cropI.right = int(floorf(cropF.right));
+    cropI.bottom = int(floorf(cropF.bottom));
+    return cropI;
+}
+
+inline bool isNonIntegralSourceCrop(const hwc_frect_t& cropF) {
+    if(cropF.left - roundf(cropF.left)     ||
+       cropF.top - roundf(cropF.top)       ||
+       cropF.right - roundf(cropF.right)   ||
+       cropF.bottom - roundf(cropF.bottom))
+        return true;
+    else
+        return false;
+}
+
 // -----------------------------------------------------------------------------
 // Utility functions - implemented in hwc_utils.cpp
 void dumpLayer(hwc_layer_1_t const* l);
@@ -184,6 +204,13 @@ int getBlending(int blending);
 void dumpsys_log(android::String8& buf, const char* fmt, ...);
 
 int getExtOrientation(hwc_context_t* ctx);
+
+bool isValidRect(const hwc_rect_t& rect);
+void deductRect(const hwc_layer_1_t* layer, hwc_rect_t& irect);
+hwc_rect_t getIntersection(const hwc_rect_t& rect1, const hwc_rect_t& rect2);
+hwc_rect_t getUnion(const hwc_rect_t& rect1, const hwc_rect_t& rect2);
+void optimizeLayerRects(hwc_context_t *ctx,
+                        const hwc_display_contents_1_t *list, const int& dpy);
 
 /* Calculates the destination position based on the action safe rectangle */
 void getActionSafePosition(hwc_context_t *ctx, int dpy, hwc_rect_t& dst);
@@ -227,7 +254,7 @@ void setMdpFlags(hwc_layer_1_t *layer,
         int rotDownscale, int transform);
 
 int configRotator(overlay::Rotator *rot, ovutils::Whf& whf,
-        const ovutils::eMdpFlags& mdpFlags,
+        const ovutils::Whf& origWhf, const ovutils::eMdpFlags& mdpFlags,
         const ovutils::eTransform& orient, const int& downscale);
 
 int configMdp(overlay::Overlay *ov, const ovutils::PipeArgs& parg,
