@@ -370,16 +370,12 @@ void getActionSafePosition(hwc_context_t *ctx, int dpy, hwc_rect_t& rect) {
     float xRatio = 1.0;
     float yRatio = 1.0;
 
-    float fbWidth = ctx->dpyAttr[dpy].xres;
-    float fbHeight = ctx->dpyAttr[dpy].yres;
+    int fbWidth = ctx->dpyAttr[dpy].xres;
+    int fbHeight = ctx->dpyAttr[dpy].yres;
     if(ctx->dpyAttr[dpy].mDownScaleMode) {
         // if downscale Mode is enabled for external, need to query
         // the actual width and height, as that is the physical w & h
-    int tmpWidth = static_cast<int>(fbWidth);
-    int tmpHeight = static_cast<int>(fbHeight);
-    ctx->mExtDisplay->getAttributes(tmpWidth, tmpHeight);
-    fbWidth = (float)tmpWidth;
-    fbHeight = (float)tmpHeight;
+         ctx->mExtDisplay->getAttributes(fbWidth, fbHeight);
     }
 
 
