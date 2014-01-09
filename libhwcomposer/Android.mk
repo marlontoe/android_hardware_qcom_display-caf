@@ -11,6 +11,10 @@ LOCAL_SHARED_LIBRARIES        := $(common_libs) libEGL liboverlay \
                                  libdl libmemalloc libqservice libsync \
                                  libbinder libmedia libvirtual
 LOCAL_CFLAGS                  := $(common_flags) -DLOG_TAG=\"qdhwcomposer\"
+# Workaround tricky inline functions by lowering the optimization level
+# and building with GCC
+LOCAL_GCC                     := true
+LOCAL_CFLAGS                  += -Os
 LOCAL_ADDITIONAL_DEPENDENCIES := $(common_deps)
 LOCAL_SRC_FILES               := hwc.cpp          \
                                  hwc_utils.cpp    \
