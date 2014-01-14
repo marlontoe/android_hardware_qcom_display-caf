@@ -30,6 +30,7 @@
 #include "hwc_fbupdate.h"
 #include "mdp_version.h"
 #include "hwc_copybit.h"
+#include "hwc_dump_layers.h"
 #include "external.h"
 #include "virtual.h"
 #include "hwc_qclient.h"
@@ -247,6 +248,9 @@ void initContext(hwc_context_t *ctx)
         ctx->mLayerRotMap[i] = new LayerRotMap();
     }
 
+    for (uint32_t i = 0; i < HWC_NUM_DISPLAY_TYPES; i++) {
+        ctx->mHwcDebug[i] = new HwcDebug(i);
+    }
     MDPComp::init(ctx);
 
     ctx->vstate.enable = false;
@@ -319,6 +323,10 @@ void closeContext(hwc_context_t *ctx)
         if(ctx->mLayerRotMap[i]) {
             delete ctx->mLayerRotMap[i];
             ctx->mLayerRotMap[i] = NULL;
+        }
+        if(ctx->mHwcDebug[i]) {
+            delete ctx->mHwcDebug[i];
+            ctx->mHwcDebug[i] = NULL;
         }
     }
 
@@ -744,6 +752,7 @@ void setListStats(hwc_context_t *ctx,
     ctx->listStats[dpy].extOnlyLayerIndex = -1;
     ctx->listStats[dpy].isDisplayAnimating = false;
     ctx->listStats[dpy].secureUI = false;
+    ctx->mViewFrame[dpy] = (hwc_rect_t){0, 0, 0, 0};
 
     optimizeLayerRects(ctx, list, dpy);
 
@@ -751,6 +760,9 @@ void setListStats(hwc_context_t *ctx,
         hwc_layer_1_t const* layer = &list->hwLayers[i];
         private_handle_t *hnd = (private_handle_t *)layer->handle;
 
+        // Calculate view frame of each display from the layer displayframe
+        ctx->mViewFrame[dpy] = getUnion(ctx->mViewFrame[dpy],
+                                        layer->displayFrame);
 #ifdef QCOM_BSP
         if (layer->flags & HWC_SCREENSHOT_ANIMATOR_LAYER) {
             ctx->listStats[dpy].isDisplayAnimating = true;

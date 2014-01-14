@@ -48,6 +48,9 @@ endif
 ifeq ($(TARGET_DISPLAY_USE_QCOM_BSP_CAMERA_ABI_HACK),true)
     common_flags += -DQCOM_BSP_CAMERA_ABI_HACK
 endif
+ifeq ($(TARGET_BOARD_PLATFORM),msm8660)
+    common_flags += -DNO_IOMMU
+endif
 ifeq ($(TARGET_DISPLAY_USE_RESERVED_FIELDS),true)
     common_flags += -DUSE_RESERVED_FIELDS
 endif
