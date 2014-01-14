@@ -207,7 +207,7 @@ void initContext(hwc_context_t *ctx)
     ctx->mMDP.panel = qdutils::MDPVersion::getInstance().getPanelType();
     overlay::Overlay::initOverlay();
     ctx->mOverlay = overlay::Overlay::getInstance();
-    ctx->mRotMgr = new RotMgr();
+    ctx->mRotMgr = RotMgr::getInstance();
 
     //Is created and destroyed only once for primary
     //For external it could get created and destroyed multiple times depending
@@ -1447,7 +1447,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
     eTransform orient = static_cast<eTransform>(transform);
     int downscale = 0;
     int rotFlags = ovutils::ROT_FLAGS_NONE;
-    bool forceRot = false;
     Whf whf(getWidth(hnd), getHeight(hnd),
             getMdpFormat(hnd->format), hnd->size);
 
@@ -1476,6 +1475,7 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
     calcExtDisplayPosition(ctx, hnd, dpy, crop, dst,
                                            transform, orient);
 
+    bool forceRot = false;
     if(isYuvBuffer(hnd) && ctx->mMDP.version >= qdutils::MDP_V4_2 &&
        ctx->mMDP.version < qdutils::MDSS_V5) {
         downscale =  getDownscaleFactor(
@@ -1486,11 +1486,12 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         if(downscale) {
             rotFlags = ROT_DOWNSCALE_ENABLED;
         }
-        unsigned int& prevWidth = ctx->mPrevWHF[dpy].w;
-        unsigned int& prevHeight = ctx->mPrevWHF[dpy].h;
+
+        uint32_t& prevWidth = ctx->mPrevWHF[dpy].w;
+        uint32_t& prevHeight = ctx->mPrevWHF[dpy].h;
         if(prevWidth != (uint32_t)getWidth(hnd) ||
-               prevHeight != (uint32_t)getHeight(hnd)) {
-            uint32_t prevBufArea = (prevWidth * prevHeight);
+                prevHeight != (uint32_t)getHeight(hnd)) {
+            uint32_t prevBufArea = prevWidth * prevHeight;
             if(prevBufArea) {
                 forceRot = true;
             }
@@ -1511,7 +1512,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         if(configRotator(*rot, whf, origWhf,  mdpFlags, orient, downscale) < 0) {
         //Configure rotator for pre-rotation
             ALOGE("%s: configRotator failed!", __FUNCTION__);
-            ctx->mOverlay->clear(dpy);
             return -1;
         }
         ctx->mLayerRotMap[dpy]->add(layer, *rot);
@@ -1530,7 +1530,6 @@ int configureLowRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
 
     if(configMdp(ctx->mOverlay, parg, orient, crop, dst, metadata, dest) < 0) {
         ALOGE("%s: commit failed for low res panel", __FUNCTION__);
-        ctx->mLayerRotMap[dpy]->reset();
         return -1;
     }
     return 0;
@@ -1581,11 +1580,25 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         }
     }
 
+    bool forceRot = false;
+    if(isYuvBuffer(hnd)) {
+        uint32_t& prevWidth = ctx->mPrevWHF[dpy].w;
+        uint32_t& prevHeight = ctx->mPrevWHF[dpy].h;
+        if(prevWidth != (uint32_t)getWidth(hnd) ||
+                prevHeight != (uint32_t)getHeight(hnd)) {
+            uint32_t prevBufArea = (prevWidth * prevHeight);
+            if(prevBufArea) {
+                forceRot = true;
+            }
+            prevWidth = (uint32_t)getWidth(hnd);
+            prevHeight = (uint32_t)getHeight(hnd);
+        }
+    }
 
     setMdpFlags(layer, mdpFlagsL, 0, transform);
     trimLayer(ctx, dpy, transform, crop, dst);
 
-    if(isYuvBuffer(hnd) && (transform & HWC_TRANSFORM_ROT_90)) {
+    if(isYuvBuffer(hnd) && ((transform & HWC_TRANSFORM_ROT_90) || forceRot)) {
         (*rot) = ctx->mRotMgr->getNext();
         if((*rot) == NULL) return -1;
         Whf origWhf(hnd->width, hnd->height,
@@ -1593,7 +1606,6 @@ int configureHighRes(hwc_context_t *ctx, hwc_layer_1_t *layer,
         if(configRotator(*rot, whf, origWhf, mdpFlagsL, orient, downscale) < 0) {
         //Configure rotator for pre-rotation
             ALOGE("%s: configRotator failed!", __FUNCTION__);
-            ctx->mOverlay->clear(dpy);
             return -1;
         }
         ctx->mLayerRotMap[dpy]->add(layer, *rot);
@@ -1690,6 +1702,11 @@ void LayerRotMap::reset() {
         mRot[i] = 0;
     }
     mCount = 0;
+}
+
+void LayerRotMap::clear() {
+    RotMgr::getInstance()->markUnusedTop(mCount);
+    reset();
 }
 
 void LayerRotMap::setReleaseFd(const int& fence) {
