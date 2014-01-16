@@ -383,7 +383,7 @@ void getActionSafePosition(hwc_context_t *ctx, int dpy, hwc_rect_t& rect) {
     if(ctx->dpyAttr[dpy].mDownScaleMode) {
         // if downscale Mode is enabled for external, need to query
         // the actual width and height, as that is the physical w & h
-         ctx->mExtDisplay->getAttributes(fbWidth, fbHeight);
+        ctx->mExtDisplay->getAttributes(fbWidth, fbHeight);
     }
 
 

@@ -30,6 +30,4 @@
 #include<comptype.h>
 
 //Instanticate the QCCompositionType Singleton
-namespace android {
 ANDROID_SINGLETON_STATIC_INSTANCE(qdutils::QCCompositionType);
-}
