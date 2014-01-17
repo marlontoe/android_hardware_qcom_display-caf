@@ -404,9 +404,10 @@ struct hwc_context_t {
     qhwc::ListStats listStats[HWC_NUM_DISPLAY_TYPES];
     qhwc::LayerProp *layerProp[HWC_NUM_DISPLAY_TYPES];
     qhwc::MDPComp *mMDPComp[HWC_NUM_DISPLAY_TYPES];
+    qhwc::CablProp mCablProp;
+    overlay::utils::Whf mPrevWHF[HWC_NUM_DISPLAY_TYPES];
     qhwc::HwcDebug *mHwcDebug[HWC_NUM_DISPLAY_TYPES];
     hwc_rect_t mViewFrame[HWC_NUM_DISPLAY_TYPES];
-    qhwc::CablProp mCablProp;
 
     // No animation on External display feature
     // Notifies hwcomposer about the device orientation before animation.
@@ -436,8 +437,7 @@ struct hwc_context_t {
     bool mBufferMirrorMode;
 
     qhwc::LayerRotMap *mLayerRotMap[HWC_NUM_DISPLAY_TYPES];
-    //previous Width & Height
-    overlay::utils::Whf mPrevWHF[HWC_NUM_DISPLAY_TYPES];
+
     // Panel reset flag will be set if BTA check fails
     bool mPanelResetStatus;
 };
