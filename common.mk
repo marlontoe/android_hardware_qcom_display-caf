@@ -54,6 +54,6 @@ ifeq ($(TARGET_DISPLAY_USE_RESERVED_FIELDS),true)
     common_flags += -DUSE_RESERVED_FIELDS
 endif
 
-ifeq ($(TARGET_BOARD_PLATFORM),msm8660)
+ifneq ($(filter msm8660 msm7x30 msm7x27a,$(TARGET_BOARD_PLATFORM)),)
     common_flags += -DNO_IOMMU
 endif

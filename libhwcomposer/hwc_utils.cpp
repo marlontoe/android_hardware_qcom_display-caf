@@ -1142,7 +1142,7 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
 
 #ifndef MDSS_TARGET
     //Send acquireFenceFds to rotator
-    if(mdpVersion < qdutils::MDSS_V5) {
+    if(mdpVersion >= qdutils::MDP_V4_0 && mdpVersion < qdutils::MDSS_V5) {
         //A-family
         int rotFd = ctx->mRotMgr->getRotDevFd();
         struct msm_rotator_buf_sync rotData;
@@ -1249,7 +1249,7 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
         ctx->mCopyBit[dpy]->setReleaseFd(releaseFd);
 
     //A-family
-    if(mdpVersion < qdutils::MDSS_V5) {
+    if(mdpVersion >= qdutils::MDP_V4_0 && mdpVersion < qdutils::MDSS_V5) {
         //Signals when MDP finishes reading rotator buffers.
         ctx->mLayerRotMap[dpy]->setReleaseFd(releaseFd);
     }
@@ -1402,6 +1402,17 @@ bool setupBasePipe(hwc_context_t *ctx) {
     return true;
 }
 
+ovutils::eDest getPipeForFb(hwc_context_t *ctx, int dpy) {
+    ovutils::eDest dest = ovutils::OV_INVALID;
+    overlay::Overlay& ov = *ctx->mOverlay;
+
+    dest = ov.nextPipe(ovutils::OV_MDP_PIPE_RGB, dpy);
+    if(dest != ovutils::OV_INVALID) {
+        return dest;
+    }
+
+    return ov.nextPipe(ovutils::OV_MDP_PIPE_VG, dpy);
+}
 
 inline int configMdp(Overlay *ov, const PipeArgs& parg,
         const eTransform& orient, const hwc_rect_t& crop,
