@@ -20,7 +20,7 @@ common_libs := liblog libutils libcutils libhardware
 
 #Common C flags
 common_flags := -DDEBUG_CALC_FPS -Wno-missing-field-initializers
-common_flags += -Werror
+common_flags += -Werror -Wno-error=narrowing -Wno-error=attributes
 
 ifeq ($(ARCH_ARM_HAVE_NEON),true)
     common_flags += -D__ARM_HAVE_NEON
@@ -49,7 +49,11 @@ endif
 ifneq ($(TARGET_DISPLAY_INSECURE_MM_HEAP),true)
     common_flags += -DSECURE_MM_HEAP
 endif
+ifeq ($(TARGET_DISPLAY_USE_QCOM_BSP_CAMERA_ABI_HACK),true)
+    common_flags += -DQCOM_BSP_CAMERA_ABI_HACK
+endif
 
 ifneq ($(filter msm8660 msm7x30 msm7x27a,$(TARGET_BOARD_PLATFORM)),)
     common_flags += -DNO_IOMMU
 endif
+

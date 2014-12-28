@@ -1253,7 +1253,6 @@ int hwc_sync(hwc_context_t *ctx, hwc_display_contents_1_t* list, int dpy,
         //Signals when MDP finishes reading rotator buffers.
         ctx->mLayerRotMap[dpy]->setReleaseFd(releaseFd);
     }
-
     // if external is animating, close the relaseFd
     if(isExtAnimating) {
         close(releaseFd);
